@@ -125,9 +125,9 @@ def _makeEmptyTemplateZarrForcings(
 
     return os.path.join(savedir, filename), files_to_read, dates
 
-def ConvertForcingIntegerToFloatFile(
-        file_to_read:str|tuple[str,str]=None,
-        dsPcor:xr.Dataset=None,
+def _ConvertForcingIntegerToFloatFile(
+        file_to_read:str|tuple[str,str],
+        dsPcor:xr.Dataset | None,
         verbose:bool=True
     ) -> xr.Dataset:
     ''' 
@@ -140,7 +140,7 @@ def ConvertForcingIntegerToFloatFile(
 
     #---helper functions---
     def _convertForcings(
-            ds:xr.Dataset=None
+            ds:xr.Dataset
         ) -> xr.Dataset:
         ''' 
         Helper function to convert the forcings from integer to float based on the offset values.
@@ -168,8 +168,8 @@ def ConvertForcingIntegerToFloatFile(
         return ds_converted
 
     def _ScalePwithPcor(
-            ds_feature:xr.Dataset=None,
-            dsPcor:xr.Dataset=None
+            ds_feature:xr.Dataset,
+            dsPcor:xr.Dataset
         ) -> xr.Dataset:
         '''
         helper function to scale the precipitation with a correction factor!
@@ -275,18 +275,19 @@ def ConvertForcingIntegerToFloatFile(
                     )
                 
     #---scale the precipitation with the correction factor---
-    ds_feature=_ScalePwithPcor(
-                    ds_feature=ds_feature, 
-                    dsPcor=dsPcor
-                    )
+    if dsPcor is not None: #ONLY SCALE IF A PCOR DATASET IS PROVIDED
+        ds_feature=_ScalePwithPcor(
+                        ds_feature=ds_feature, 
+                        dsPcor=dsPcor
+                        )
 
     return ds_feature
 
-def TransformForcingsFileWriteToZarr(
-        store:str=None,
-        file_to_read:str=None,
-        dsPcor:xr.Dataset=None,
-        index:int=0
+def _TransformForcingsFileWriteToZarr(
+        store:str,
+        file_to_read:str,
+        dsPcor:xr.Dataset | None,
+        index:int = 0
     ) -> None:
     ''' 
     Function that based on an existent zarr store, and a forcing file to read:
@@ -297,16 +298,19 @@ def TransformForcingsFileWriteToZarr(
         - write the transformed dataset to the zarr store at the specified index
     '''
     #read in the file to read and convert the forcings from integer to float based on the offset values
-    ds_transformed=ConvertForcingIntegerToFloatFile(file_to_read=file_to_read,
-                                                    dsPcor=dsPcor,
-                                                    verbose=False)
+    ds_transformed=_ConvertForcingIntegerToFloatFile(
+                                                file_to_read=file_to_read,
+                                                dsPcor=dsPcor,
+                                                verbose=False
+                                                )
 
     #transpose the dataset to match the zarr store and drop the lat, lon and time variables (if they exist)
     #why: they are constant and need to be dropped to avoid conflicts when writing to the zarr store
     ds_transformed=ds_transformed.transpose(*list(xr.open_zarr(store, consolidated=True).sizes.keys())).\
                                     drop_vars(
-                                                ["lat", "lon", "time"],
-                                                errors="ignore")
+                                            ["lat", "lon", "time"],
+                                            errors="ignore"
+                                        )
 
     #write the transformed dataset to the zarr store at the specified index
     ds_transformed.to_zarr(
@@ -327,7 +331,8 @@ def CreateZarrTransformedForcings(
     filename:str="test.zarr",
     ncores:int=len(os.sched_getaffinity(0)),
     ncores_min:int=8,
-    maxPcor:float=2.0  
+    maxPcor:float=2.0 ,
+    applyPcor:bool=True
     ) -> None:
     ''' 
     Function that creates a zarr store with converted forcings from integer to float based on the offset values for a specific tile (tx, ty).
@@ -351,17 +356,21 @@ def CreateZarrTransformedForcings(
     )
 
     #---extract the Pcor dataset for the specified tile---
-    PcorTile=next((f for f  in glob.glob(os.path.join(PcorDir,"*.nc")) if f"y{ty:03d}x{tx:03d}" in f), None)
-    if PcorTile is None:
-        raise FileNotFoundError(f"No Pcor file found for tile y{ty:03d}x{tx:03d} in {PcorDir}! This file is needed to correct the precipitation in the forcings.")
-    dsPcor=transpose_dataset(xr.open_dataset(PcorTile)).clip(max=maxPcor)
+    if applyPcor:
+        PcorTile=next((f for f  in glob.glob(os.path.join(PcorDir,"*.nc")) if f"y{ty:03d}x{tx:03d}" in f), None)
+        if PcorTile is None:
+            raise FileNotFoundError(f"No Pcor file found for tile y{ty:03d}x{tx:03d} in {PcorDir}! "
+                                    f"This file is needed to correct the precipitation in the forcings.")
+        dsPcor=transpose_dataset(xr.open_dataset(PcorTile)).clip(max=maxPcor)
+    else:
+        dsPcor=None
 
     #---add the transformed data to the zarr store---
     _ = Parallel(
         n_jobs=ncores,          # or -1, but ncores is often safer for IO
         verbose=0,
     )(
-        delayed(TransformForcingsFileWriteToZarr)(
+        delayed(_TransformForcingsFileWriteToZarr)(
             store=store_tmp,
             file_to_read=file_to_read,
             dsPcor=dsPcor,

@@ -104,7 +104,12 @@ def parse_arguments() -> argparse.Namespace:
                         type=str,
                         default="/kyukon/data/gent/vo/000/gvo00090/SNOWSHOP/measurements/insitu/Alps_dataset_SD.nc",
                         help="Path to xr dataset containing the in situ measurements") 
-    
+
+    parser.add_argument("--ApplyPcor",
+                        type=str2bool,
+                        default=False,
+                        help="Flag to indicate if Pcor should be applied (default: False)")
+
     args = parser.parse_args()
     
     return args
@@ -139,6 +144,7 @@ class PrepareRunTile:
                  implementation:str, 
                  model_only_sites:bool,
                  remove_output_cells:bool,
+                 ApplyPcor:bool,
                  store_measurements:str
                  ):
         self.tx=tx
@@ -150,6 +156,7 @@ class PrepareRunTile:
         self.implementation=implementation
         self.model_only_sites=model_only_sites
         self.remove_output_cells=remove_output_cells
+        self.ApplyPcor=ApplyPcor
         self.store_measurements=store_measurements
 
     def runPreprocessing(self) -> str:
@@ -177,7 +184,8 @@ class PrepareRunTile:
                 date_ini=self.date_ini,
                 date_end=self.date_end,
                 savedir=forcing_dir,
-                filename="forcings.zarr"
+                filename="forcings.zarr",
+                applyPcor=self.ApplyPcor
                 )
             print("Forcings zarr file created successfully.", file=sys.stderr)
         

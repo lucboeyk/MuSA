@@ -12,8 +12,9 @@ cluster=${1:-"skiddo"}
 modelOnlySites=${2:-True}
 date_ini=${3:-"2015-09-01 00:00"}
 date_end=${4:-"2024-08-31 23:00"}
-rootdirMuSAruns=${5:-"/kyukon/data/gent/vo/000/gvo00090/vsc44965/Doctoraat/Python/Machine_learning/Traditional_MLA/sd/MuSA/DATA/"}
-remove_output_cells=${6:-True}
+applyPcor=${5:-True}
+rootdirMuSAruns=${6:-"/kyukon/data/gent/vo/000/gvo00090/vsc44965/Doctoraat/Python/Machine_learning/Traditional_MLA/sd/MuSA/Experiments_Elisabeth/"}
+remove_output_cells=${7:-True}
 
 # -- hard coded ---
 store_measurements="/kyukon/data/gent/vo/000/gvo00090/SNOWSHOP/measurements/insitu/Alps_dataset_SD.nc"
@@ -58,6 +59,7 @@ job=$(sbatch --job-name=MuSArun_Alps \
                         $modelOnlySites \
                         $remove_output_cells \
                         $store_measurements \
-                        $tilefile"
+                        $tilefile \
+                        $applyPcor"
                         )
 
