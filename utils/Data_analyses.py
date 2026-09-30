@@ -69,7 +69,7 @@ def Make2DHistogram(
     mae=round(mean_absolute_error(dfPreds[target],
                                     dfPreds[preds]),
                 2)
-    bias=round(np.mean(dfPreds[target] - dfPreds[preds]),4)
+    bias=round(np.mean(dfPreds[preds] -dfPreds[target]),4)
     # Add performance metrics as text
     metrics = [f"R: {corr:.2f}", 
                 f"RMSE: {rmse:.2f} m", 
